@@ -1,6 +1,7 @@
 name: "Application DevSecOps (Test, Scan & ECR Build)"
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:

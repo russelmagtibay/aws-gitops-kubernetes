@@ -69,6 +69,26 @@ resource "aws_iam_role_policy_attachment" "node_AmazonSSMManagedInstanceCore" {
   role       = aws_iam_role.node.name
 }
 
+resource "aws_iam_role_policy" "node_ecr_kms" {
+  name = "${var.project_name}-${var.environment}-node-ecr-kms-policy"
+  role = aws_iam_role.node.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowNodeECRKMSDecrypt"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # ============================================================================
 # Tier 3: Workload Identity — Backend Pod IAM Role (EKS Pod Identity)
 # ============================================================================
@@ -256,7 +276,13 @@ resource "aws_iam_policy" "alb_controller" {
         ]
         Resource = [
           "arn:aws:elasticloadbalancing:*:*:targetgroup/*/*",
-          "arn:aws:elasticloadbalancing:*:*:loadbalancer/*/*"
+          "arn:aws:elasticloadbalancing:*:*:loadbalancer/*/*",
+          "arn:aws:elasticloadbalancing:*:*:loadbalancer/net/*/*",
+          "arn:aws:elasticloadbalancing:*:*:loadbalancer/app/*/*",
+          "arn:aws:elasticloadbalancing:*:*:listener/net/*/*/*",
+          "arn:aws:elasticloadbalancing:*:*:listener/app/*/*/*",
+          "arn:aws:elasticloadbalancing:*:*:listener-rule/net/*/*/*",
+          "arn:aws:elasticloadbalancing:*:*:listener-rule/app/*/*/*"
         ]
       },
       {
@@ -277,7 +303,9 @@ resource "aws_iam_policy" "alb_controller" {
           "elasticloadbalancing:ModifyListener",
           "elasticloadbalancing:AddListenerCertificates",
           "elasticloadbalancing:RemoveListenerCertificates",
-          "elasticloadbalancing:ModifyRule"
+          "elasticloadbalancing:CreateRule",
+          "elasticloadbalancing:ModifyRule",
+          "elasticloadbalancing:DeleteRule"
         ]
         Resource = "*"
       }
@@ -355,6 +383,18 @@ resource "aws_iam_policy" "github_actions_ecr" {
           "ecr:CompleteLayerUpload"
         ]
         Resource = length(var.ecr_repository_arns) > 0 ? var.ecr_repository_arns : ["*"]
+      },
+      {
+        Sid    = "ECRKMSKeyAccess"
+        Effect = "Allow"
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey"
+        ]
+        Resource = "*"
       },
       {
         Sid    = "TerraformStateBackendAccess"
