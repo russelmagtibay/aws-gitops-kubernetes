@@ -28,7 +28,7 @@ variable "github_repositories" {
   description = "GitHub repositories allowed to assume the GitHub Actions OIDC IAM Role"
   type        = list(string)
   default = [
-    "russelmagtibay/aws-gitops-kubernetes",
-    "rjcloudev/aws-gitops-kubernetes"
+    "russelmagtibay*/aws-gitops-kubernetes*",
+    "rjcloudev*/aws-gitops-kubernetes*"
   ]
 }

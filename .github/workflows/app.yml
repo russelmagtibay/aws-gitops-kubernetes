@@ -95,7 +95,6 @@ jobs:
       - name: Configure AWS Credentials (OIDC)
         id: aws-oidc
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-eks-gitops-role
