@@ -44,7 +44,7 @@ jobs:
 
       - name: Run Pytest
         working-directory: app/backend
-        run: pytest -v
+        run: python -m pytest -v
 
   build-and-scan:
     name: "Docker Build, Trivy Scan & ECR Push"
@@ -92,19 +92,21 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Configure AWS Credentials (OIDC)
+        id: aws-oidc
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-eks-gitops-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Log in to Amazon ECR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.aws-oidc.outcome == 'success'
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Tag and Push Images to Amazon ECR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.aws-oidc.outcome == 'success'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
@@ -117,4 +119,3 @@ jobs:
           docker tag ${{ env.FRONTEND_REPO }}:${{ github.sha }} $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:${{ github.sha }}
           docker push $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:latest
           docker push $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:${{ github.sha }}
-

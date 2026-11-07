@@ -97,6 +97,7 @@ resource "aws_eks_cluster" "this" {
   tags = {
     Name        = var.cluster_name
     Environment = var.environment
+    VpcId       = var.vpc_id
   }
 }
 
