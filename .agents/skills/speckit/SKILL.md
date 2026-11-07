@@ -16,7 +16,7 @@ Use this skill whenever the user types `/speckit` (or `/speckit.specify`, `/spec
 
 ## Core Rules (Strict SDD Discipline)
 1. **Never ask the user to copy-paste code from chat into files.** Always write and update files directly inside the IDE workspace (`C:\Users\russel\aws-gitops-kubernetes`).
-2. **Do NOT call `atlassian-mcp-server` tools if `/v1/sse` is active** (as it throws a transport deprecation error). Instead, always read `.specify/memory/constitution.md` and `SPEC.md` in `C:\Users\russel\aws-gitops-kubernetes`, which contain the complete synchronized Jira Epics, User Stories (`AGK-1` through `AGK-5`), and Confluence Architecture Blueprint.
+2. **Do NOT call `atlassian-mcp-server` tools if `/v1/sse` is active** (as it throws a transport deprecation error). Instead, always read `.specify/memory/constitution.md` and `SPEC.md` in `C:\Users\russel\aws-gitops-kubernetes`, which contain the complete synchronized Jira Epics, User Stories (`AGK-1` through `AGK-6`), and Confluence Architecture Blueprint.
 3. **Execute the 4 Spec-Kit Stages automatically in sequence** when the user invokes `/speckit <Jira-Story-Link-or-Key>`:
 
 ---

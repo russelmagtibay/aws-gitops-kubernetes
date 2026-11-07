@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud Native Lead Capture — Amazon EKS GitOps</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen">
+  <div class="max-w-4xl mx-auto px-4 py-10">
+    <header class="text-center mb-10">
+      <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-400 text-sm font-semibold mb-3 border border-emerald-500/20">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        Amazon EKS 1.31 • GitOps Production Cluster
+      </div>
+      <h1 class="text-4xl font-extrabold tracking-tight">Enterprise Lead Capture Platform</h1>
+      <p class="text-slate-400 mt-2">Zero-Trust Microservices • EKS Pod Identity • DynamoDB & SNS Persistence</p>
+    </header>
+
+    <div class="grid md:grid-cols-2 gap-8">
+      <!-- Form Card -->
+      <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-6 shadow-xl backdrop-blur">
+        <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+          <span>📝</span> Submit Customer Lead
+        </h2>
+        <form id="leadForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1">Full Name *</label>
+            <input type="text" id="name" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Jane Doe">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1">Business Email *</label>
+            <input type="email" id="email" required class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="jane@example.com">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1">Company / Organization</label>
+            <input type="text" id="company" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Acme Cloud Solutions">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-300 mb-1">Project Notes / Requirements</label>
+            <textarea id="notes" rows="3" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500" placeholder="Kubernetes migration, HPA scaling..."></textarea>
+          </div>
+          <button type="submit" id="submitBtn" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2.5 rounded-lg transition shadow-lg shadow-emerald-600/20">
+            Submit Lead to DynamoDB
+          </button>
+        </form>
+        <div id="statusMessage" class="hidden mt-4 p-3 rounded-lg text-sm text-center"></div>
+      </div>
+
+      <!-- Live Leads List -->
+      <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl p-6 shadow-xl backdrop-blur flex flex-col">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold flex items-center gap-2">
+            <span>📊</span> Captured Leads
+          </h2>
+          <button onclick="fetchLeads()" class="text-xs bg-slate-700 hover:bg-slate-600 px-2.5 py-1 rounded transition text-slate-300">
+            Refresh
+          </button>
+        </div>
+        <div id="leadsList" class="flex-1 overflow-y-auto space-y-3 max-h-[380px] pr-1">
+          <p class="text-slate-400 text-sm italic">Loading leads from DynamoDB...</p>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mt-12 text-center text-xs text-slate-500">
+      Built with Terraform, Amazon EKS, AWS Load Balancer Controller & ArgoCD GitOps
+    </footer>
+  </div>
+
+  <script>
+    const form = document.getElementById('leadForm');
+    const statusDiv = document.getElementById('statusMessage');
+    const listDiv = document.getElementById('leadsList');
+
+    async function fetchLeads() {
+      try {
+        const res = await fetch('/api/leads');
+        if (!res.ok) throw new Error('API returned status ' + res.status);
+        const leads = await res.json();
+        if (leads.length === 0) {
+          listDiv.innerHTML = '<p class="text-slate-400 text-sm italic">No leads captured yet. Be the first!</p>';
+          return;
+        }
+        listDiv.innerHTML = leads.map(l => `
+          <div class="bg-slate-900/90 border border-slate-700/50 p-3 rounded-lg text-sm">
+            <div class="flex justify-between items-start">
+              <span class="font-semibold text-emerald-400">${escapeHtml(l.name)}</span>
+              <span class="text-xs text-slate-500">${new Date(l.created_at).toLocaleDateString()}</span>
+            </div>
+            <div class="text-xs text-slate-300 mt-1">${escapeHtml(l.email)} • <span class="text-slate-400">${escapeHtml(l.company || 'N/A')}</span></div>
+            ${l.notes ? `<p class="text-xs text-slate-400 mt-1.5 border-t border-slate-800 pt-1">${escapeHtml(l.notes)}</p>` : ''}
+          </div>
+        `).join('');
+      } catch (err) {
+        listDiv.innerHTML = `<p class="text-rose-400 text-xs">Error connecting to /api/leads: ${err.message}</p>`;
+      }
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Submitting...';
+
+      const payload = {
+        name: document.getElementById('name').value,
+        email: document.getElementById('email').value,
+        company: document.getElementById('company').value,
+        notes: document.getElementById('notes').value
+      };
+
+      try {
+        const res = await fetch('/api/leads', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Submission failed');
+        statusDiv.className = 'mt-4 p-3 rounded-lg text-sm text-center bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+        statusDiv.innerText = 'Lead successfully saved to DynamoDB and alerted via SNS!';
+        statusDiv.classList.remove('hidden');
+        form.reset();
+        fetchLeads();
+      } catch (err) {
+        statusDiv.className = 'mt-4 p-3 rounded-lg text-sm text-center bg-rose-500/20 text-rose-300 border border-rose-500/30';
+        statusDiv.innerText = 'Error submitting lead: ' + err.message;
+        statusDiv.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Submit Lead to DynamoDB';
+      }
+    });
+
+    function escapeHtml(text) {
+      return (text || '').replace(/[&<>"']/g, m => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+      }[m]));
+    }
+
+    fetchLeads();
+  </script>
+</body>
+</html>
+

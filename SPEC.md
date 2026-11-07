@@ -44,10 +44,13 @@ Every Terraform module, Kubernetes manifest, and GitHub Actions workflow in this
    - Installed via the Terraform `helm_release` provider (`aws-load-balancer-controller` from `https://aws.github.io/eks-charts`).
    - Configured with `target-type: ip` so the Application Load Balancer routes Layer-7 HTTP traffic directly to Pod IPs inside private subnets.
 
-5. **3-Tier Microservices, HPA & ArgoCD GitOps (`k8s/` — Jira `AGK-5`):**
+5. **3-Tier Microservices & HPA Autoscaling (`app/`, `k8s/` — Jira `AGK-5`):**
    - Namespace `production` containing Frontend UI, Backend FastAPI Lead Capture API, and DynamoDB/SNS persistence.
    - Non-root container execution (`runAsNonRoot: true`, `readOnlyRootFilesystem: true`), CPU/Memory `requests` and `limits`, `livenessProbe` / `readinessProbe`, and `HorizontalPodAutoscaler` (`autoscaling/v2`) scaling from `2` to `6` replicas at `70%` CPU utilization.
-   - Declarative ArgoCD `Application` manifest reconciling cluster state from Git.
+
+6. **Two-Speed DevSecOps CI/CD & ArgoCD GitOps (`.github/workflows/`, `k8s/argocd-application.yaml` — Jira `AGK-6`):**
+   - **Pipeline 1 (`infra.yml`):** GitHub Actions OIDC authentication (zero static AWS keys), `terraform fmt -check`, `terraform validate`, **TFLint**, and **Checkov** IaC scanning.
+   - **Pipeline 2 (`app.yml`):** Automated `pytest` unit tests, Docker multi-stage build, **Trivy** container vulnerability scan, push to Amazon ECR, and declarative **ArgoCD `Application`** manifest (`prune: true`, `selfHeal: true`) reconciling cluster state from Git.
 
 ---
 
@@ -56,7 +59,9 @@ Every Terraform module, Kubernetes manifest, and GitHub Actions workflow in this
 | Jira Issue | Component | Status | Deliverable Path | Acceptance Criteria |
 | :--- | :--- | :--- | :--- | :--- |
 | **`AGK-1`** | `[EKS-VPC]` Multi-AZ VPC & Subnets | **Done** | `modules/vpc/`, `environments/dev/` | Deterministic `az_subnet_map` (`for_each`) + 4 validation rules implemented; subnets carry `kubernetes.io/role/elb` & `internal-elb` tags; Single NAT + S3 Gateway Endpoint + locked default SG + Flow Logs; `terraform validate` passes. |
-| **`AGK-2`** | `[EKS-IAM]` 3-Tier IAM & Pod Identity | To Do | `modules/iam/`, `modules/dynamodb/`, `modules/sns/` | Cluster Role, Node Role (`SSM` enabled), ALB Controller Role, and Backend Pod Identity Role pass `terraform validate`. |
-| **`AGK-3`** | `[EKS-CORE]` EKS Cluster & Node Group | To Do | `modules/eks/` | EKS 1.31, KMS Secret encryption, Access Entries, Pod Identity Addon, and `t3.medium` (`min=2, max=4`) IMDSv2 Launch Template. |
-| **`AGK-4`** | `[EKS-INGRESS]` AWS ALB Controller | To Do | `environments/dev/helm.tf` | Helm release deploys `aws-load-balancer-controller` in `kube-system` using IAM ServiceAccount. |
-| **`AGK-5`** | `[EKS-GITOPS]` 3-Tier K8s + HPA + ArgoCD | To Do | `k8s/`, `.github/workflows/` | Manifests for UI, FastAPI Backend, HPA (`2-6` pods), Ingress (`alb`), ArgoCD `Application`, and CI/CD pipelines. |
+| **`AGK-2`** | `[EKS-IAM]` 3-Tier IAM & Pod Identity | **Done** | `modules/iam/`, `modules/dynamodb/`, `modules/sns/` | Cluster Role, Node Role (`SSM` enabled), ALB Controller Role, and Backend Pod Identity Role (least-privilege DynamoDB/SNS) implemented; `terraform validate` passes. |
+| **`AGK-3`** | `[EKS-CORE]` EKS Cluster & Node Group | **Done** | `modules/eks/` | EKS 1.31, KMS Secret envelope encryption, modern Access Entries, `t3.medium` (`min=2, max=4`) IMDSv2 Launch Template, and managed addons implemented; `terraform validate` passes. |
+| **`AGK-4`** | `[EKS-INGRESS]` AWS ALB Controller | **Done** | `environments/dev/helm.tf`, `modules/alb_controller/` | Helm provider configured dynamically with EKS auth; `aws-load-balancer-controller` Helm release deployed with EKS Pod Identity association; `terraform validate` passes. |
+| **`AGK-5`** | `[EKS-K8S]` 3-Tier Microservices & HPA | **Done** | `app/`, `k8s/`, `environments/dev/` | Production 3-Tier app (FastAPI + UI), Kubernetes Deployments, Services, HPA (`2-6` pods at `70%` CPU), ALB Ingress (`target-type: ip`), and Pod Identity association implemented; `terraform validate` passes. |
+| **`AGK-6`** | `[EKS-CICD]` GitHub Actions CI/CD & ArgoCD | **Done** | `.github/workflows/`, `k8s/argocd-application.yaml` | Two-speed OIDC pipelines (`infra.yml` with TFLint/Checkov + `app.yml` with Pytest/Trivy/ECR) and declarative ArgoCD GitOps sync implemented. |
+| **`AGK-7`** | `[EKS-ECR]` Amazon ECR & GitHub OIDC IAM | **Done** | `modules/ecr/`, `modules/iam/`, `.github/workflows/infra.yml` | KMS-encrypted ECR repositories (`scan_on_push = true`, 5-image lifecycle cap), `github-actions-eks-gitops-role` OIDC trust, and S3 backend `terraform init` / `apply` / `destroy` workflow implemented; `terraform validate` passes. |

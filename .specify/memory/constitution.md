@@ -73,12 +73,26 @@ Every User Story (`AGK-1` through `AGK-5`) maps to a parent **Epic** so engineer
     2. `helm_release` resource installs `aws-load-balancer-controller` from `https://aws.github.io/eks-charts` into `kube-system`.
     3. `terraform validate` passes with zero errors.
 
-### Epic 5: `[EPIC-GITOPS] 3-Tier Microservices, HPA Autoscaling & ArgoCD GitOps`
-- **Epic Goal:** Deploy a production 3-Tier application (UI + FastAPI Backend + DynamoDB/SNS) with Horizontal Pod Autoscaling (`HPA`) and continuous GitOps reconciliation via ArgoCD and GitHub Actions OIDC CI/CD.
+### Epic 5: `[EPIC-K8S-APP] Cloud-Native 3-Tier Microservices & HPA Autoscaling`
+- **Epic Goal:** Deploy a hardened 3-Tier application (UI + FastAPI Backend + DynamoDB/SNS) on Amazon EKS with Horizontal Pod Autoscaling (`HPA`) and zero-downtime probes.
 - **Linked User Story:**
-  - **`AGK-5` (`https://rjcloudev.atlassian.net/browse/AGK-5`):** `[EKS-GITOPS] Deploy 3-Tier Microservices with HPA & ArgoCD`
+  - **`AGK-5` (`https://rjcloudev.atlassian.net/browse/AGK-5`):** `[EKS-K8S] Deploy 3-Tier Microservices & Horizontal Pod Autoscaler (HPA)`
   - **Validation Criteria:**
-    1. Kubernetes manifests in `k8s/` enforce `runAsNonRoot: true`, resource `requests`/`limits`, and `livenessProbe`/`readinessProbe`.
+    1. Kubernetes manifests in `k8s/` enforce `runAsNonRoot: true`, `readOnlyRootFilesystem: true`, resource `requests`/`limits`, and `livenessProbe`/`readinessProbe`.
     2. `HorizontalPodAutoscaler` (`autoscaling/v2`) scales backend pods from `minReplicas: 2` to `maxReplicas: 6` at `70%` CPU target.
-    3. Kubernetes `Ingress` (`ingressClassName: alb`, `target-type: ip`) exposes the 3-tier platform publicly.
-    4. ArgoCD `Application` manifest and GitHub Actions OIDC workflows (`infra.yml` and `app.yml`) automate GitOps delivery.
+    3. Kubernetes `Ingress` (`ingressClassName: alb`, `target-type: ip`) exposes the 3-tier platform publicly via the AWS Load Balancer Controller.
+
+### Epic 6: `[EPIC-CICD] Zero-Trust DevSecOps CI/CD & ArgoCD GitOps Delivery`
+- **Epic Goal:** Automate infrastructure validation, container security scanning, ECR image publishing, and continuous GitOps cluster reconciliation using GitHub Actions OIDC and ArgoCD.
+- **Linked User Story:**
+  - **`AGK-6` (`https://rjcloudev.atlassian.net/browse/AGK-6`):** `[EKS-CICD] Automate Two-Speed GitHub Actions OIDC CI/CD & ArgoCD GitOps`
+  - **Validation Criteria:**
+    1. **Pipeline 1 (`.github/workflows/infra.yml`):** Uses AWS OIDC role assumption (no static AWS keys) to run `terraform fmt -check`, `terraform validate`, **TFLint**, and **Checkov** IaC security scans.
+    2. **Pipeline 2 (`.github/workflows/app.yml`):** Runs `pytest` unit tests, builds the Docker container image, runs **Trivy** vulnerability scanning, and pushes immutable tags to Amazon ECR.
+    3. **GitOps Reconciliation (`k8s/argocd-application.yaml`):** Declarative ArgoCD `Application` manifest configured with `automated: { prune: true, selfHeal: true }` synced to `https://github.com/russelmagtibay/aws-gitops-kubernetes.git`.
+
+  - **`AGK-7` (`https://rjcloudev.atlassian.net/browse/AGK-7`):** `[EKS-ECR] Provision Amazon ECR Repositories & GitHub OIDC IAM Role via Terraform`
+  - **Validation Criteria:**
+    1. **Hardened ECR (`modules/ecr/`):** KMS CMK encryption (`CKV_AWS_136`), `scan_on_push = true` (`CKV_AWS_163`), `image_tag_mutability = "IMMUTABLE"` (`CKV_AWS_51`), and lifecycle retention policy (`max_image_count = 5`).
+    2. **GitHub Actions OIDC Role (`modules/iam/`):** `github-actions-eks-gitops-role` trusting `token.actions.githubusercontent.com` with least-privilege ECR push and S3 state backend permissions.
+    3. `terraform validate` passes with zero errors.

@@ -1,0 +1,120 @@
+name: "Application DevSecOps (Test, Scan & ECR Build)"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/app.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/app.yml"
+
+permissions:
+  id-token: write # Required for AWS OIDC authentication
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+  AWS_ACCOUNT_ID: "570515227299"
+  BACKEND_REPO: lead-capture-backend
+  FRONTEND_REPO: lead-capture-frontend
+
+jobs:
+  unit-tests:
+    name: "Backend Python Unit Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Dependencies
+        working-directory: app/backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pytest
+        working-directory: app/backend
+        run: pytest -v
+
+  build-and-scan:
+    name: "Docker Build, Trivy Scan & ECR Push"
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Image Locally
+        uses: docker/build-push-action@v6
+        with:
+          context: app/backend
+          load: true
+          tags: ${{ env.BACKEND_REPO }}:${{ github.sha }}
+
+      - name: Scan Backend Image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.BACKEND_REPO }}:${{ github.sha }}
+          format: "table"
+          exit-code: "0" # Non-blocking in CI demo, reports findings
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Build Frontend Image Locally
+        uses: docker/build-push-action@v6
+        with:
+          context: app/frontend
+          load: true
+          tags: ${{ env.FRONTEND_REPO }}:${{ github.sha }}
+
+      - name: Scan Frontend Image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.FRONTEND_REPO }}:${{ github.sha }}
+          format: "table"
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Configure AWS Credentials (OIDC)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/github-actions-eks-gitops-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag and Push Images to Amazon ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker tag ${{ env.BACKEND_REPO }}:${{ github.sha }} $ECR_REGISTRY/${{ env.BACKEND_REPO }}:latest
+          docker tag ${{ env.BACKEND_REPO }}:${{ github.sha }} $ECR_REGISTRY/${{ env.BACKEND_REPO }}:${{ github.sha }}
+          docker push $ECR_REGISTRY/${{ env.BACKEND_REPO }}:latest
+          docker push $ECR_REGISTRY/${{ env.BACKEND_REPO }}:${{ github.sha }}
+
+          docker tag ${{ env.FRONTEND_REPO }}:${{ github.sha }} $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:latest
+          docker tag ${{ env.FRONTEND_REPO }}:${{ github.sha }} $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:${{ github.sha }}
+          docker push $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:latest
+          docker push $ECR_REGISTRY/${{ env.FRONTEND_REPO }}:${{ github.sha }}
+
