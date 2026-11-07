@@ -103,21 +103,22 @@ resource "aws_eks_cluster" "this" {
 
 # ============================================================================
 # 4. EKS Modern Access Entries (Replacing aws-auth ConfigMap)
+# Note: bootstrap_cluster_creator_admin_permissions = true automatically creates
+# the ClusterAdmin Access Entry for the caller (russel-admin). Additional
+# principals can be granted admin access via var.admin_principal_arn.
 # ============================================================================
-locals {
-  admin_principal = var.admin_principal_arn != "" ? var.admin_principal_arn : data.aws_caller_identity.current.arn
-}
-
 resource "aws_eks_access_entry" "admin" {
+  count         = var.admin_principal_arn != "" ? 1 : 0
   cluster_name  = aws_eks_cluster.this.name
-  principal_arn = local.admin_principal
+  principal_arn = var.admin_principal_arn
   type          = "STANDARD"
 }
 
 resource "aws_eks_access_policy_association" "admin" {
+  count         = var.admin_principal_arn != "" ? 1 : 0
   cluster_name  = aws_eks_cluster.this.name
   policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-  principal_arn = local.admin_principal
+  principal_arn = var.admin_principal_arn
 
   access_scope {
     type = "cluster"

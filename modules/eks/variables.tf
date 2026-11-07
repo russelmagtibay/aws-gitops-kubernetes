@@ -46,9 +46,9 @@ variable "admin_principal_arn" {
 }
 
 variable "node_instance_types" {
-  description = "EC2 instance types for the Managed Node Group (FinOps t3.medium)"
+  description = "EC2 instance types for the Managed Node Group (Free Tier eligible t3.small)"
   type        = list(string)
-  default     = ["t3.medium"]
+  default     = ["t3.small"]
 }
 
 variable "min_size" {
